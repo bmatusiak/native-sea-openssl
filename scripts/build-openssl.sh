@@ -23,6 +23,10 @@ if [ -z "$NDK" ]; then
   exit 1
 fi
 
+# Export variables OpenSSL's Configure expects
+export ANDROID_NDK_ROOT="$NDK"
+export ANDROID_NDK_HOME="$NDK"
+
 mkdir -p "$OUTDIR"
 
 # Download source tarball if needed
