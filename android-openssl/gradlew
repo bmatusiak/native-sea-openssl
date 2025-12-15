@@ -4,7 +4,7 @@ set -euo pipefail
 # Minimal gradlew helper: downloads a Gradle distribution if system Gradle isn't available
 # and executes it. This avoids requiring a pre-installed Gradle on CI/dev machines.
 
-GRADLE_VERSION=${GRADLE_VERSION:-"7.6.2"}
+GRADLE_VERSION=${GRADLE_VERSION:-"8.6"}
 DIST_URL=${DIST_URL:-"https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"}
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CACHE_DIR="$ROOT_DIR/.gradle/wrapper/dists/gradle-${GRADLE_VERSION}-bin"
@@ -39,11 +39,16 @@ if [ ! -x "$EXTRACT_DIR/bin/gradle" ]; then
     exit 1
   fi
 
-  # Gradle zips create a directory like gradle-<version>
-  # If present, move/rename to expected extract dir
-  found_dir=$(find "$CACHE_DIR" -maxdepth 1 -type d -name "gradle-*" -print -quit || true)
-  if [ -n "$found_dir" ] && [ "$found_dir" != "$EXTRACT_DIR" ]; then
-    mv -f "$found_dir" "$EXTRACT_DIR"
+  # Locate the actual extracted Gradle directory by finding the 'bin/gradle' executable
+  grad_file=$(find "$CACHE_DIR" -type f -path "*/bin/gradle" -print -quit || true)
+  if [ -n "$grad_file" ]; then
+    EXTRACT_DIR=$(dirname "$(dirname "$grad_file")")
+  else
+    # Fallback: look for a top-level gradle-<version> directory
+    found_dir=$(find "$CACHE_DIR" -maxdepth 2 -type d -name "gradle-*" -print -quit || true)
+    if [ -n "$found_dir" ]; then
+      EXTRACT_DIR="$found_dir"
+    fi
   fi
 fi
 

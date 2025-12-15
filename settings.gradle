@@ -1,2 +1,13 @@
+pluginManagement {
+	repositories {
+		gradlePluginPortal()
+		google()
+		mavenCentral()
+	}
+	plugins {
+		id 'com.android.library' version '8.2.0'
+	}
+}
+
 rootProject.name = 'android-openssl-build'
 include ':android-openssl'

@@ -64,8 +64,14 @@ for ABI in "${ABIS[@]}"; do
   echo "Building OpenSSL for $ABI (target $TARGET)"
 
   BUILD_OUT="$OUTDIR/$ABI"
+  BUILD_WORKDIR="$(pwd)/../../build/openssl-${OPENSSL_VERSION}-$ABI"
   mkdir -p "$BUILD_OUT"
-  make clean || true
+
+  # If we've already installed for this ABI, skip rebuilding (cache hit)
+  if [ -f "$BUILD_OUT/lib/libssl.a" ] && [ -f "$BUILD_OUT/lib/libcrypto.a" ]; then
+    echo "Cached install found for $ABI at $BUILD_OUT — skipping build."
+    continue
+  fi
 
   # Prepare Android NDK toolchain
   TOOLCHAIN_BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -97,10 +103,22 @@ for ABI in "${ABIS[@]}"; do
   export NM="$TOOLCHAIN_BIN/llvm-nm"
   export STRIP="$TOOLCHAIN_BIN/llvm-strip"
 
-  # Configure and build
+  # Use a per-ABI working copy of the OpenSSL source so incremental builds are possible
+  if [ ! -d "$BUILD_WORKDIR" ]; then
+    echo "Creating build workdir $BUILD_WORKDIR"
+    mkdir -p "$(dirname "$BUILD_WORKDIR")"
+    cp -a "$(pwd)" "$BUILD_WORKDIR"
+  fi
+
+  pushd "$BUILD_WORKDIR"
+  make clean || true
+
+  # Configure and build in the workdir; install into the ABI-specific output directory
   ./Configure $TARGET no-shared no-tests --prefix="$BUILD_OUT" -D__ANDROID_API__=$API
   make -j$(nproc)
   make install_sw
+
+  popd
 
   echo "Installed to $BUILD_OUT"
 done

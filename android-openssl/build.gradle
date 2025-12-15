@@ -4,6 +4,7 @@ plugins {
 
 android {
     compileSdk 33
+    namespace 'com.example.androidopenssl'
 
     defaultConfig {
         minSdk 21
