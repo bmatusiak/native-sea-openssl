@@ -16,3 +16,7 @@ native-sea-openssl/src/main/assets/
 
 # OS
 .DS_Store
+.gradle-wrapper
+
+node_modules/
+.cxx

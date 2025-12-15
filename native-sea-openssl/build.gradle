@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.library'
+    id 'maven-publish'
 }
 
 android {
@@ -9,6 +10,21 @@ android {
     defaultConfig {
         minSdk 21
         targetSdk 33
+    }
+
+    // Build native wrapper that links to the prebuilt libcrypto in src/main/jniLibs
+    defaultConfig {
+        minSdk 21
+        targetSdk 33
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('CMakeLists.txt')
+        }
     }
 
     sourceSets {
@@ -24,4 +40,64 @@ tasks.register('assembleOpensslAar', Exec) {
     group = 'build'
     description = 'Build OpenSSL and assemble AAR with native libs and headers'
     commandLine 'bash', '../scripts/package-aar.sh'
+}
+
+// Note: React Native compile-time artifacts are provided via local stub JAR below.
+
+// Compile lightweight React Native stubs into a compile-only JAR so the module
+// can be built without pulling React Native from external repositories.
+def stubsSrc = file('react-stubs')
+def stubsJar = file("$buildDir/react-stubs/react-stubs.jar")
+
+task compileReactStubs(type: JavaCompile) {
+    source = fileTree(dir: stubsSrc, include: '**/*.java')
+    classpath = files()
+    destinationDir = file("$buildDir/react-stubs/classes")
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+}
+
+task jarReactStubs(type: Jar, dependsOn: compileReactStubs) {
+    archiveFileName = 'react-stubs.jar'
+    from compileReactStubs.destinationDir
+    destinationDirectory = file("$buildDir/react-stubs")
+}
+
+// Make Java compile depend on the stub jar being available and add it as compileOnly
+tasks.withType(JavaCompile).configureEach { task ->
+    if (task.name != 'compileReactStubs') {
+        task.dependsOn jarReactStubs
+    }
+}
+
+dependencies {
+    compileOnly files(stubsJar)
+}
+
+// Ensure tasks that scan compile classpath for annotations run after stub JAR is created
+tasks.matching { it.name.startsWith('extract') && it.name.contains('Annotations') }.all { t ->
+    t.dependsOn jarReactStubs
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            aar(MavenPublication) {
+                groupId = project.findProperty('PUBLISH_GROUP') ?: 'com.example'
+                artifactId = project.findProperty('PUBLISH_ARTIFACT') ?: 'native-sea-openssl'
+                version = project.findProperty('PUBLISH_VERSION') ?: (project.hasProperty('OPENSSL_VERSION') ? OPENSSL_VERSION : '3.0.11')
+                artifact("$buildDir/outputs/aar/native-sea-openssl-release.aar")
+            }
+        }
+        repositories {
+            maven {
+                name = 'GitHubPackages'
+                url = uri(System.getenv('PUBLISH_REPO_URL') ?: "https://maven.pkg.github.com/${System.getenv('GITHUB_REPOSITORY')}")
+                credentials {
+                    username = System.getenv('GITHUB_ACTOR') ?: System.getenv('PUBLISH_USER')
+                    password = System.getenv('GITHUB_TOKEN') ?: System.getenv('PUBLISH_PASSWORD')
+                }
+            }
+        }
+    }
 }

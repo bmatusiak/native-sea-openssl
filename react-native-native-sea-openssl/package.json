@@ -1,0 +1,9 @@
+{
+  "name": "react-native-native-sea-openssl",
+  "version": "0.0.1",
+  "description": "React Native wrapper that provides OpenSSL native AAR built from native-sea-openssl",
+  "main": "index.js",
+  "keywords": ["react-native","openssl","native"],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,18 @@
+// Top-level build file for the example. Use the RN project's top-level file normally.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.4.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        // Note: local AAR approach doesn't need external Maven
+    }
+}

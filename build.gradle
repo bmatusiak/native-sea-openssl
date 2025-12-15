@@ -7,5 +7,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // allow resolving React Native artifacts published to OSS (if needed)
+        maven { url 'https://oss.sonatype.org/content/repositories/releases/' }
     }
 }

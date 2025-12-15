@@ -1,0 +1,19 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 33
+    defaultConfig {
+        applicationId "com.example.rnmaven"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+}
+
+dependencies {
+    // Consumes the AAR published to Maven (GitHub Packages)
+    implementation 'com.example:native-sea-openssl:3.0.11'
+}

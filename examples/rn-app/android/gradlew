@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal self-bootstrap Gradle wrapper.
+# - downloads a specified Gradle distribution into .gradle-wrapper/gradle-<version>
+# - executes the Gradle binary inside that folder with passed args
+
+VERSION=8.6
+WRAPPER_DIR="$(pwd)/.gradle-wrapper"
+GRADLE_DIR="$WRAPPER_DIR/gradle-$VERSION"
+GRADLE_BIN="$GRADLE_DIR/bin/gradle"
+DIST_URL="https://services.gradle.org/distributions/gradle-$VERSION-bin.zip"
+
+echo "Using Gradle wrapper bootstrap (version $VERSION)."
+
+if [ -x "$GRADLE_BIN" ]; then
+  exec "$GRADLE_BIN" "$@"
+fi
+
+mkdir -p "$WRAPPER_DIR"
+
+if command -v curl >/dev/null 2>&1; then
+  echo "Downloading Gradle $VERSION..."
+  curl -L -o "$WRAPPER_DIR/gradle-$VERSION-bin.zip" "$DIST_URL"
+elif command -v wget >/dev/null 2>&1; then
+  echo "Downloading Gradle $VERSION..."
+  wget -O "$WRAPPER_DIR/gradle-$VERSION-bin.zip" "$DIST_URL"
+else
+  echo "Error: curl or wget is required to bootstrap Gradle. Install one or install Gradle system-wide." >&2
+  exit 1
+fi
+
+if ! command -v unzip >/dev/null 2>&1; then
+  echo "Error: unzip is required to extract Gradle distribution." >&2
+  exit 1
+fi
+
+echo "Extracting Gradle..."
+unzip -q "$WRAPPER_DIR/gradle-$VERSION-bin.zip" -d "$WRAPPER_DIR"
+rm -f "$WRAPPER_DIR/gradle-$VERSION-bin.zip"
+chmod +x "$GRADLE_BIN"
+
+exec "$GRADLE_BIN" "$@"

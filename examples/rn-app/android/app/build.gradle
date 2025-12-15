@@ -1,0 +1,20 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 33
+    defaultConfig {
+        applicationId "com.example.examplernapp"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+}
+
+dependencies {
+    // Include the AAR built in the repo (fallback when node_modules copy isn't present)
+    implementation files('../../../../native-sea-openssl/build/outputs/aar/native-sea-openssl-release.aar')
+    // Add RN dependency placeholders; actual RN build requires many more settings.
+}
