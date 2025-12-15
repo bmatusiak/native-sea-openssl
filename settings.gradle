@@ -9,5 +9,5 @@ pluginManagement {
 	}
 }
 
-rootProject.name = 'android-openssl-build'
-include ':android-openssl'
+rootProject.name = 'native-sea-openssl'
+include ':native-sea-openssl'

@@ -1,4 +1,4 @@
-# android-openssl-build
+# native-sea-openssl
 
 This project provides scripts to build OpenSSL for Android ABIs and package an AAR containing the native `.so` files and headers for use in an Android / React Native native module.
 
@@ -21,6 +21,6 @@ Assemble AAR (builds OpenSSL then produces AAR):
 bash scripts/package-aar.sh
 ```
 
-The resulting AAR will be in `android-openssl/build/outputs/aar/` and headers will be packaged inside the AAR under `assets/openssl/include`.
+The resulting AAR will be in `native-sea-openssl/build/outputs/aar/` and headers will be packaged inside the AAR under `assets/openssl/include`.
 
 See `scripts/` for customization options (OpenSSL version, NDK path, ABIs).

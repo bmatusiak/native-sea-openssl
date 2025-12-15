@@ -5,7 +5,7 @@ set -euo pipefail
 
 OPENSSL_VERSION=${OPENSSL_VERSION:-"3.0.11"}
 ROOT_DIR="$(pwd)"
-MODULE_DIR="$ROOT_DIR/android-openssl"
+MODULE_DIR="$ROOT_DIR/native-sea-openssl"
 OUTDIR="$ROOT_DIR/third_party/openssl/${OPENSSL_VERSION}"
 ABIS=(armeabi-v7a arm64-v8a x86 x86_64)
 
