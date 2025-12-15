@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal gradlew helper: downloads a Gradle distribution if system Gradle isn't available
+# and executes it. This avoids requiring a pre-installed Gradle on CI/dev machines.
+
+GRADLE_VERSION=${GRADLE_VERSION:-"7.6.2"}
+DIST_URL=${DIST_URL:-"https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"}
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CACHE_DIR="$ROOT_DIR/.gradle/wrapper/dists/gradle-${GRADLE_VERSION}-bin"
+ZIP_PATH="$CACHE_DIR/gradle-${GRADLE_VERSION}-bin.zip"
+EXTRACT_DIR="$CACHE_DIR/gradle-${GRADLE_VERSION}"
+
+run_gradle_bin() {
+  "$EXTRACT_DIR/bin/gradle" "$@"
+}
+
+if command -v gradle >/dev/null 2>&1; then
+  exec gradle "$@"
+fi
+
+mkdir -p "$CACHE_DIR"
+
+if [ ! -x "$EXTRACT_DIR/bin/gradle" ]; then
+  echo "Gradle not found; downloading Gradle ${GRADLE_VERSION}..."
+  if command -v curl >/dev/null 2>&1; then
+    curl -fSL "$DIST_URL" -o "$ZIP_PATH"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "$ZIP_PATH" "$DIST_URL"
+  else
+    echo "curl or wget is required to download Gradle. Install one or pre-install Gradle." >&2
+    exit 1
+  fi
+
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q -o "$ZIP_PATH" -d "$CACHE_DIR"
+  else
+    echo "unzip is required to extract Gradle. Install 'unzip' or pre-install Gradle." >&2
+    exit 1
+  fi
+
+  # Gradle zips create a directory like gradle-<version>
+  # If present, move/rename to expected extract dir
+  found_dir=$(find "$CACHE_DIR" -maxdepth 1 -type d -name "gradle-*" -print -quit || true)
+  if [ -n "$found_dir" ] && [ "$found_dir" != "$EXTRACT_DIR" ]; then
+    mv -f "$found_dir" "$EXTRACT_DIR"
+  fi
+fi
+
+if [ -x "$EXTRACT_DIR/bin/gradle" ]; then
+  exec "$EXTRACT_DIR/bin/gradle" "$@"
+else
+  echo "Failed to prepare Gradle executable." >&2
+  exit 1
+fi

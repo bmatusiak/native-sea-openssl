@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    compileSdk 33
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 33
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+            assets.srcDirs += ['src/main/assets']
+        }
+    }
+}
+
+// Convenience Gradle task to run packaging script
+tasks.register('assembleOpensslAar', Exec) {
+    group = 'build'
+    description = 'Build OpenSSL and assemble AAR with native libs and headers'
+    commandLine 'bash', '../scripts/package-aar.sh'
+}

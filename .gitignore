@@ -1,0 +1,18 @@
+# Gradle
+.gradle/
+/build/
+**/build/
+
+# Android Studio
+*.iml
+/.idea/
+
+# NDK build outputs and downloaded sources
+third_party/
+
+# Temporary scripts output
+android-openssl/src/main/jniLibs/
+android-openssl/src/main/assets/
+
+# OS
+.DS_Store
