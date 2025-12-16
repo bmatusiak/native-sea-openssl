@@ -16,6 +16,7 @@ if [ -z "$NDK" ] && [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; th
 fi
 API=${API:-21}
 ABIS=(armeabi-v7a arm64-v8a x86 x86_64)
+BUILD_TYPES=(release debug)
 OUTDIR="$(pwd)/third_party/openssl/${OPENSSL_VERSION}"
 
 if [ -z "$NDK" ]; then
@@ -64,18 +65,7 @@ for ABI in "${ABIS[@]}"; do
     *)
       echo "Unsupported ABI: $ABI"; exit 1;;
   esac
-
   echo "Building OpenSSL for $ABI (target $TARGET)"
-
-  BUILD_OUT="$OUTDIR/$ABI"
-  BUILD_WORKDIR="$(pwd)/../../build/openssl-${OPENSSL_VERSION}-$ABI"
-  mkdir -p "$BUILD_OUT"
-
-  # If we've already installed for this ABI, skip rebuilding (cache hit)
-  if [ -f "$BUILD_OUT/lib/libssl.a" ] && [ -f "$BUILD_OUT/lib/libcrypto.a" ]; then
-    echo "Cached install found for $ABI at $BUILD_OUT — skipping build."
-    continue
-  fi
 
   # Prepare Android NDK toolchain
   TOOLCHAIN_BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -106,25 +96,43 @@ for ABI in "${ABIS[@]}"; do
   export RANLIB="$TOOLCHAIN_BIN/llvm-ranlib"
   export NM="$TOOLCHAIN_BIN/llvm-nm"
   export STRIP="$TOOLCHAIN_BIN/llvm-strip"
+  for BUILD_TYPE in "${BUILD_TYPES[@]}"; do
+    BUILD_OUT="$OUTDIR/$ABI/$BUILD_TYPE"
+    BUILD_WORKDIR="$(pwd)/../../build/openssl-${OPENSSL_VERSION}-$ABI-$BUILD_TYPE"
+    mkdir -p "$BUILD_OUT"
 
-  # Use a per-ABI working copy of the OpenSSL source so incremental builds are possible
-  if [ ! -d "$BUILD_WORKDIR" ]; then
-    echo "Creating build workdir $BUILD_WORKDIR"
-    mkdir -p "$(dirname "$BUILD_WORKDIR")"
-    cp -a "$(pwd)" "$BUILD_WORKDIR"
-  fi
+    # If we've already installed for this ABI+type, skip rebuilding (cache hit)
+    if [ -f "$BUILD_OUT/lib/libssl.a" ] && [ -f "$BUILD_OUT/lib/libcrypto.a" ]; then
+      echo "Cached install found for $ABI/$BUILD_TYPE at $BUILD_OUT — skipping build."
+      continue
+    fi
 
-  pushd "$BUILD_WORKDIR"
-  make clean || true
+    # Use a per-ABI+type working copy of the OpenSSL source so incremental builds are possible
+    if [ ! -d "$BUILD_WORKDIR" ]; then
+      echo "Creating build workdir $BUILD_WORKDIR"
+      mkdir -p "$(dirname "$BUILD_WORKDIR")"
+      cp -a "$(pwd)" "$BUILD_WORKDIR"
+    fi
 
-  # Configure and build in the workdir; install into the ABI-specific output directory
-  ./Configure $TARGET no-shared no-tests --prefix="$BUILD_OUT" -D__ANDROID_API__=$API
-  make -j$(nproc)
-  make install_sw
+    pushd "$BUILD_WORKDIR"
+    make clean || true
 
-  popd
+    # For debug builds enable debug CFLAGS (unstripped) and conservative optimization
+    if [ "$BUILD_TYPE" = "debug" ]; then
+      export CFLAGS="-g -O0"
+    else
+      unset CFLAGS
+    fi
 
-  echo "Installed to $BUILD_OUT"
+    # Configure and build in the workdir; install into the ABI+type-specific output directory
+    ./Configure $TARGET no-shared no-tests --prefix="$BUILD_OUT" -D__ANDROID_API__=$API
+    make -j$(nproc)
+    make install_sw
+
+    popd
+
+    echo "Installed to $BUILD_OUT"
+  done
 done
 
 popd
