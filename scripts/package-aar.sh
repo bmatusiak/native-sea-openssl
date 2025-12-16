@@ -47,17 +47,31 @@ mkdir -p "$MODULE_DIR/src/main/assets/openssl/include"
 if [ "${SHIP_SOURCE_TO_AAR}" = "1" ]; then
   mkdir -p "$MODULE_DIR/src/main/assets/openssl/src"
 fi
-if [ -d "$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}/include" ]; then
-  cp -r "$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}/include"/* "$MODULE_DIR/src/main/assets/openssl/include/"
-else
-  # try copying from one of the built installs (prefer any ABI/release copy)
-  for ABI in "${ABIS[@]}"; do
-    SRC_INC="$OUTDIR/$ABI/release/include"
-    if [ -d "$SRC_INC" ]; then
-      cp -r "$SRC_INC"/* "$MODULE_DIR/src/main/assets/openssl/include/"
-      break
-    fi
-  done
+# Prefer copying the built, ABI-specific install includes (they contain generated
+# configuration.h) and fall back to the source include templates if needed.
+COPIED=0
+for ABI in "${ABIS[@]}"; do
+  # prefer release installs
+  SRC_INC="$OUTDIR/$ABI/release/include"
+  if [ -d "$SRC_INC" ]; then
+    cp -r "$SRC_INC"/* "$MODULE_DIR/src/main/assets/openssl/include/"
+    COPIED=1
+    break
+  fi
+  # fallback to debug installs
+  SRC_INC="$OUTDIR/$ABI/debug/include"
+  if [ -d "$SRC_INC" ]; then
+    cp -r "$SRC_INC"/* "$MODULE_DIR/src/main/assets/openssl/include/"
+    COPIED=1
+    break
+  fi
+done
+if [ "$COPIED" -eq 0 ]; then
+  if [ -d "$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}/include" ]; then
+    cp -r "$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}/include"/* "$MODULE_DIR/src/main/assets/openssl/include/"
+  else
+    echo "Warning: no OpenSSL include files found in builds or source; prefab will miss configuration.h"
+  fi
 fi
 
 assemble_variant() {
@@ -154,35 +168,104 @@ inject_prefab_into_aar() {
       ABI_LIBDIR="$OUTDIR/$ABI/lib"
     fi
     if [ -d "$ABI_LIBDIR" ]; then
-      mkdir -p "$PREFAB_DIR/libs/$ABI"
+      PREFAB_ABI_DIR="$PREFAB_DIR/libs/android.$ABI"
+      mkdir -p "$PREFAB_ABI_DIR"
       for lib in libcrypto libssl; do
         if [ "${INCLUDE_STATIC}" = "1" ] && [ -f "$ABI_LIBDIR/${lib}.a" ]; then
-          cp -v "$ABI_LIBDIR/${lib}.a" "$PREFAB_DIR/libs/$ABI/"
+          cp -v "$ABI_LIBDIR/${lib}.a" "$PREFAB_ABI_DIR/"
         fi
         if [ "${INCLUDE_SHARED}" = "1" ] && [ -f "$ABI_LIBDIR/${lib}.so" ]; then
-          cp -v "$ABI_LIBDIR/${lib}.so" "$PREFAB_DIR/libs/$ABI/"
+          cp -v "$ABI_LIBDIR/${lib}.so" "$PREFAB_ABI_DIR/"
         fi
       done
     fi
   done
 
-  # Write a Prefab-compatible module.json describing the two OpenSSL libraries
+  # Create abi.json metadata files expected by the Prefab CLI for each ABI
+  # Determine NDK major version if possible
+  if [ -n "${ANDROID_NDK_ROOT:-}" ] && [ -f "$ANDROID_NDK_ROOT/source.properties" ]; then
+    NDK_VER=$(grep -E '^Pkg.Revision' "$ANDROID_NDK_ROOT/source.properties" | awk -F'=' '{print $2}' | cut -d. -f1 | tr -d ' '\
+    ) || true
+  fi
+  NDK_VER=${NDK_VER:-27}
+  ANDROID_API=${ANDROID_API:-24}
+  for ABI in "${ABIS[@]}"; do
+    PREFAB_ABI_DIR="$PREFAB_DIR/libs/android.$ABI"
+    if [ -d "$PREFAB_ABI_DIR" ]; then
+      # Detect whether only static libs were provided
+      STATIC_PRESENT=0
+      SHARED_PRESENT=0
+      shopt -s nullglob
+      for f in "$PREFAB_ABI_DIR"/*.a; do
+        STATIC_PRESENT=1 && break
+      done
+      for f in "$PREFAB_ABI_DIR"/*.so; do
+        SHARED_PRESENT=1 && break
+      done
+      shopt -u nullglob
+      if [ "$SHARED_PRESENT" -eq 1 ]; then
+        STATIC_FLAG=false
+      elif [ "$STATIC_PRESENT" -eq 1 ]; then
+        STATIC_FLAG=true
+      else
+        # no libs => skip writing metadata
+        continue
+      fi
+
+      # If static libs were provided as libcrypto.a and libssl.a, create
+      # a merged libopenssl.a archive so the Prefab-generated
+      # opensslConfig.cmake IMPORTED_LOCATION points to an existing file.
+      if [ "$STATIC_PRESENT" -eq 1 ]; then
+        if [ -f "$PREFAB_ABI_DIR/libcrypto.a" ] || [ -f "$PREFAB_ABI_DIR/libssl.a" ]; then
+          # Only create libopenssl.a if it doesn't already exist
+          if [ ! -f "$PREFAB_ABI_DIR/libopenssl.a" ]; then
+            echo "Creating merged static archive: $PREFAB_ABI_DIR/libopenssl.a"
+            tmpobjdir=$(mktemp -d)
+            pushd "$tmpobjdir" >/dev/null
+            # extract object files from available archives
+            if [ -f "$PREFAB_ABI_DIR/libcrypto.a" ]; then
+              ar -x "$PREFAB_ABI_DIR/libcrypto.a" || true
+            fi
+            if [ -f "$PREFAB_ABI_DIR/libssl.a" ]; then
+              ar -x "$PREFAB_ABI_DIR/libssl.a" || true
+            fi
+            # create combined archive
+            if compgen -G "*.o" >/dev/null; then
+              ar -rcs "$PREFAB_ABI_DIR/libopenssl.a" *.o
+              # ensure index
+              if command -v ranlib >/dev/null 2>&1; then
+                ranlib "$PREFAB_ABI_DIR/libopenssl.a" || true
+              fi
+            else
+              echo "Warning: no object files found to build libopenssl.a for $PREFAB_ABI_DIR"
+            fi
+            popd >/dev/null
+            rm -rf "$tmpobjdir"
+          fi
+        fi
+      fi
+
+      cat > "$PREFAB_ABI_DIR/abi.json" <<EOF
+{
+  "abi": "$ABI",
+  "api": $ANDROID_API,
+  "ndk": $NDK_VER,
+  "stl": "c++_shared",
+  "static": $STATIC_FLAG
+}
+EOF
+    fi
+  done
+
+  # Write a minimal Prefab-compatible module.json that does NOT export
+  # libraries. Leaving out `export_libraries` prevents Prefab from
+  # adding INTERFACE_LINK_LIBRARIES (which produced -l flags like
+  # -lopenssl causing unresolved linker errors). The imported target
+  # will still have IMPORTED_LOCATION pointing to libopenssl.a.
   MODULE_JSON="$tmpdir/prefab/modules/openssl/module.json"
   cat > "$MODULE_JSON" <<EOF
 {
-  "schema_version": 1,
-  "name": "openssl",
-  "version": "${OPENSSL_VERSION}",
-  "libraries": [
-    {
-      "name": "crypto",
-      "headers": [ "include" ]
-    },
-    {
-      "name": "ssl",
-      "headers": [ "include" ]
-    }
-  ]
+  "android": {}
 }
 EOF
 
@@ -191,7 +274,7 @@ EOF
   mkdir -p "$(dirname "$PREFAB_JSON")"
   cat > "$PREFAB_JSON" <<EOF
 {
-  "name": "native-sea-openssl",
+  "name": "openssl",
   "schema_version": 2,
   "dependencies": [],
   "version": "${OPENSSL_VERSION}"
@@ -214,6 +297,16 @@ for A_VAR in debug release; do
     inject_prefab_into_aar "$A" "$A_VAR"
   fi
 done
+
+# Ensure the package folder receives the injected AARs (overwrite previous copies)
+mkdir -p "$TARGET_DIR"
+for A in "$MODULE_DIR/build/outputs/aar/native-sea-openssl-debug.aar" \
+         "$MODULE_DIR/build/outputs/aar/native-sea-openssl-release.aar"; do
+  if [ -f "$A" ]; then
+    cp -v "$A" "$TARGET_DIR/"
+  fi
+done
+echo "Copied injected AARs to: $TARGET_DIR"
 
 # Optionally include OpenSSL source inside the AAR assets
 if [ "${SHIP_SOURCE_TO_AAR}" = "1" ]; then
