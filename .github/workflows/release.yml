@@ -17,7 +17,7 @@ on:
       SHIP_OPENSSL_SOURCE:
         description: 'Copy OpenSSL source to package folder (0 or 1)'
         required: false
-        default: '0'
+        default: '1'
       SHIP_SOURCE_TO_AAR:
         description: 'Include OpenSSL source inside AAR assets (0 or 1)'
         required: false
