@@ -86,7 +86,7 @@ echo "  - $MODULE_DIR/build/outputs/aar/native-sea-openssl-debug.aar"
 echo "  - $MODULE_DIR/build/outputs/aar/native-sea-openssl-release.aar"
 
 # Copy produced AARs into the React Native wrapper android folder for convenience
-TARGET_DIR="$ROOT_DIR/react-native-native-sea-openssl/android"
+TARGET_DIR="$ROOT_DIR/native-sea-openssl-package/android"
 mkdir -p "$TARGET_DIR"
 for A in "$MODULE_DIR/build/outputs/aar/native-sea-openssl-debug.aar" \
          "$MODULE_DIR/build/outputs/aar/native-sea-openssl-release.aar"; do

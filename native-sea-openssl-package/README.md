@@ -1,4 +1,4 @@
-react-native-native-sea-openssl
+native-sea-openssl-package
 
 This package provides a prebuilt OpenSSL AAR produced by the `native-sea-openssl` project and a tiny JS wrapper.
 
@@ -9,12 +9,12 @@ Quick install (local, using the included AAR)
 
 1. From your app repo install this package (local path for development):
 
-   npm install --save /path/to/native-sea-openssl/react-native-native-sea-openssl
+   npm install --save /path/to/native-sea-openssl/native-sea-openssl-package
 
 2. In your Android app module `build.gradle` add the dependency pointing at the AAR file shipped in `node_modules`:
 
    dependencies {
-     implementation files('node_modules/react-native-native-sea-openssl/android/native-sea-openssl.aar')
+     implementation files('node_modules/native-sea-openssl-package/android/native-sea-openssl.aar')
    }
 
 3. Rebuild your Android app. The AAR contains the per-ABI `.so` files and headers; no extra native build steps are required.
@@ -61,7 +61,7 @@ Notes about GitHub Packages
 
 Alternative (npm-hosted AAR — easier but heavier)
 
-- You can publish this JS package to npm with the AAR included under `android/`. Consumers then `npm install react-native-native-sea-openssl` and use the `implementation files('node_modules/.../native-sea-openssl.aar')` approach shown in Quick install. This works but places binaries in npm rather than Maven and is less ideal for large-scale CI.
+- You can publish this JS package to npm with the AAR included under `android/`. Consumers then `npm install native-sea-openssl-package` and use the `implementation files('node_modules/.../native-sea-openssl.aar')` approach shown in Quick install. This works but places binaries in npm rather than Maven and is less ideal for large-scale CI.
 
 Exposing native APIs to JS
 

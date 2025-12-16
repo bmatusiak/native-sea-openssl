@@ -1,5 +1,5 @@
 {
-  "name": "react-native-native-sea-openssl",
+  "name": "native-sea-openssl",
   "version": "0.0.1",
   "description": "React Native wrapper that provides OpenSSL native AAR built from native-sea-openssl",
   "main": "index.js",

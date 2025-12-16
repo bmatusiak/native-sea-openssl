@@ -1,10 +1,1 @@
-const { NativeModules } = require('react-native');
-
-module.exports = {
-    callOpenSSL: function (input) {
-        if (NativeModules.SimpleOpenSSL && NativeModules.SimpleOpenSSL.sha256) {
-            return NativeModules.SimpleOpenSSL.sha256(input || '');
-        }
-        return Promise.reject(new Error('SimpleOpenSSL native module not available'));
-    }
-};
+module.exports = {}; // This file is intentionally left blank to serve as a placeholder for the native-sea-openssl-package module.

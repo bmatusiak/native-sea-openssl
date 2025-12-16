@@ -9,6 +9,6 @@
   "dependencies": {
     "react": "18.2.0",
     "react-native": "0.71.0",
-    "react-native-native-sea-openssl": "file:../react-native-native-sea-openssl"
+    "native-sea-openssl-package": "file:../native-sea-openssl-package"
   }
 }

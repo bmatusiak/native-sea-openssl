@@ -4,7 +4,7 @@ import { SafeAreaView, Text, Button, View, StyleSheet } from 'react-native';
 // Import the JS wrapper (this package ships the AAR or points to Maven)
 let openssl;
 try {
-  openssl = require('react-native-native-sea-openssl');
+  openssl = require('native-sea-openssl-package');
 } catch (e) {
   openssl = null;
 }

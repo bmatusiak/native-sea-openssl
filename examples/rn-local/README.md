@@ -4,11 +4,11 @@ This example demonstrates how a React Native Android app can consume the package
 
 Steps (assumes you installed the npm wrapper locally):
 
-1. `npm install --save /path/to/native-sea-openssl/react-native-native-sea-openssl`
+1. `npm install --save /path/to/native-sea-openssl/native-sea-openssl-package`
 2. In your app module `android/app/build.gradle` add the dependency to the AAR shipped inside `node_modules`:
 
    dependencies {
-     implementation files('../node_modules/react-native-native-sea-openssl/android/native-sea-openssl.aar')
+     implementation files('../node_modules/native-sea-openssl-package/android/native-sea-openssl.aar')
      // other deps (React Native etc.)
    }
 

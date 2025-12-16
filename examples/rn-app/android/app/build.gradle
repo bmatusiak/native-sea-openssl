@@ -17,7 +17,7 @@ android {
 }
 
 dependencies {
-    // Local AAR shipped in node_modules by react-native-native-sea-openssl
-    implementation files('../../node_modules/react-native-native-sea-openssl/android/native-sea-openssl.aar')
+    // Local AAR shipped in node_modules by native-sea-openssl-package
+    implementation files('../../node_modules/native-sea-openssl-package/android/native-sea-openssl.aar')
     // React Native and other application dependencies would go here
 }
