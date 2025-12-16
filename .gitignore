@@ -20,3 +20,4 @@ native-sea-openssl/src/main/assets/
 
 node_modules/
 .cxx
+*.aar
