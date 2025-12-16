@@ -218,7 +218,7 @@ fi
 if [ "${SHIP_OPENSSL_SOURCE}" = "1" ]; then
   SRC_DIR="$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}"
   if [ -d "$SRC_DIR" ]; then
-    DEST="$PACKAGE_DIR/openssl-src-${OPENSSL_VERSION}"
+    DEST="$PACKAGE_DIR/src/openssl-${OPENSSL_VERSION}"
     mkdir -p "$DEST"
     echo "Copying OpenSSL source to $DEST"
     rsync -a --exclude 'build' --exclude '*.o' --exclude '*.a' --exclude '*.so' "$SRC_DIR/" "$DEST/"

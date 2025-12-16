@@ -21,3 +21,5 @@ native-sea-openssl/src/main/assets/
 node_modules/
 .cxx
 *.aar
+# Package source tree created by packaging script
+native-sea-openssl-package/src/
