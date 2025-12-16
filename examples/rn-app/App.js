@@ -1,33 +1,35 @@
-import React from 'react';
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import { NativeModules, SafeAreaView, Text, Button, StyleSheet } from 'react-native';
 
-const App = () => {
-    const isDarkMode = useColorScheme() === 'dark';
+const { OpenSSL } = NativeModules;
 
-    return (
-        <SafeAreaProvider>
-            <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-            <AppContent />
-        </SafeAreaProvider>
-    );
-};
+export default function App() {
+  const [hash, setHash] = useState('');
 
-const AppContent = () => {
-    const safeAreaInsets = useSafeAreaInsets();
+  async function compute() {
+    try {
+      const out = await OpenSSL.sha256('test');
+      setHash(out);
+    } catch (e) {
+      setHash('error: ' + String(e));
+    }
+  }
 
-    return (
-        <View style={styles.container}>
-            <NewAppScreen templateFileName="App.js" safeAreaInsets={safeAreaInsets} />
-        </View>
-    );
-};
+  useEffect(() => {
+    compute();
+  }, []);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>OpenSSL SHA-256 of "test"</Text>
+      <Text selectable style={styles.hash}>{hash || 'computing...'}</Text>
+      <Button title="Recompute" onPress={compute} />
+    </SafeAreaView>
+  );
+}
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+  container: { flex: 1, padding: 24 },
+  title: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
+  hash: { fontSize: 14, marginBottom: 20 },
 });
-
-export default App;

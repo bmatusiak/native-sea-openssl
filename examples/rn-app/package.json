@@ -9,10 +9,10 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native/new-app-screen": "0.81.5",
     "react": "19.1.0",
     "react-native": "0.81.5",
-    "@react-native/new-app-screen": "0.81.5",
-    "react-native-safe-area-context": "^5.5.2"
+    "react-native-safe-area-context": "^5.6.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -26,9 +26,9 @@
     "@react-native/metro-config": "0.81.5",
     "eslint": "^8.19.0",
     "jest": "^29.6.3",
+    "native-sea-openssl": "file:../../native-sea-openssl-package",
     "prettier": "2.8.8",
-    "react-test-renderer": "19.1.0",
-    "native-sea-openssl": "file:../../native-sea-openssl-package"
+    "react-test-renderer": "19.1.0"
   },
   "engines": {
     "node": ">=20"

@@ -166,10 +166,11 @@ inject_prefab_into_aar() {
     fi
   done
 
-  # Write a simple module.json describing the two OpenSSL libraries
+  # Write a Prefab-compatible module.json describing the two OpenSSL libraries
   MODULE_JSON="$tmpdir/prefab/modules/openssl/module.json"
   cat > "$MODULE_JSON" <<EOF
 {
+  "schema_version": 1,
   "name": "openssl",
   "version": "${OPENSSL_VERSION}",
   "libraries": [
@@ -182,6 +183,18 @@ inject_prefab_into_aar() {
       "headers": [ "include" ]
     }
   ]
+}
+EOF
+
+  # Also write top-level prefab package index so Prefab CLI recognizes the package
+  PREFAB_JSON="$tmpdir/prefab/prefab.json"
+  mkdir -p "$(dirname "$PREFAB_JSON")"
+  cat > "$PREFAB_JSON" <<EOF
+{
+  "name": "native-sea-openssl",
+  "schema_version": 2,
+  "dependencies": [],
+  "version": "${OPENSSL_VERSION}"
 }
 EOF
 
