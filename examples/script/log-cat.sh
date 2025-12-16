@@ -1,0 +1,1 @@
+adb logcat -d ReactNativeJS:V ReactNative:V *:S 
