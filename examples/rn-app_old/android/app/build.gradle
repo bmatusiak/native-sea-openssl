@@ -1,0 +1,23 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Configure React Native Android helpers (bundling, dependency resolution)
+apply from: file("../../node_modules/react-native/react.gradle")
+
+android {
+    compileSdk 33
+    defaultConfig {
+        applicationId "com.example.examplernapp"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+}
+
+dependencies {
+    // Local AAR shipped in node_modules by native-sea-openssl (local file dependency)
+    implementation files('../../node_modules/native-sea-openssl/android/native-sea-openssl-release.aar')
+    // React Native and other application dependencies would go here
+}
