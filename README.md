@@ -40,4 +40,25 @@ To publish the AARs (configured for GitHub Packages by environment vars), run:
 
 ```bash
 ./gradlew :native-sea-openssl:publish
+
 ```
+CI publishing & packaging options
+--------------------------------
+
+The repository includes a GitHub Actions workflow at `.github/workflows/release.yml` that builds OpenSSL and packages the AARs when you push a tag like `v3.0.11`. The workflow also supports manual dispatch and exposes packaging controls:
+
+- `SKIP_OPENSSL_BUILD` (0|1) — if `1`, the script will skip running `scripts/build-openssl.sh` and use existing outputs under `third_party/openssl/<version>`.
+- `SHIP_OPENSSL_SOURCE` (0|1) — if `1`, the OpenSSL source tree `third_party/src/openssl-<version>` is copied into `native-sea-openssl-package/openssl-src-<version>` for consumers.
+- `SHIP_SOURCE_TO_AAR` (0|1) — if `1`, the OpenSSL source is copied into the AAR assets under `assets/openssl/src`.
+- `INCLUDE_STATIC` (0|1, default 1) — control whether `.a` static archives are included in `jniLibs` and Prefab inside the AAR.
+- `INCLUDE_SHARED` (0|1, default 1) — control whether `.so` shared libraries are included in `jniLibs` and Prefab.
+
+You can trigger the workflow manually from GitHub (Actions → Build & Release AARs) and pass these inputs, or push a tag `v<openssl-version>` to trigger a tag-aligned build.
+
+Example manual dispatch values to ship source and only static libs:
+
+1. Go to the repo Actions → Build & Release AARs → Run workflow
+2. Set `OPENSSL_VERSION` to `3.0.11`
+3. Set `SHIP_OPENSSL_SOURCE` and/or `SHIP_SOURCE_TO_AAR` to `1`
+4. Set `INCLUDE_SHARED` to `0` and `INCLUDE_STATIC` to `1`
+

@@ -9,6 +9,20 @@ MODULE_DIR="$ROOT_DIR/native-sea-openssl"
 OUTDIR="$ROOT_DIR/third_party/openssl/${OPENSSL_VERSION}"
 ABIS=(armeabi-v7a arm64-v8a x86 x86_64)
 
+# Packaging options (environment variables):
+#  SKIP_OPENSSL_BUILD=1        -> don't run build-openssl.sh (use existing third_party outputs)
+#  SHIP_OPENSSL_SOURCE=1       -> copy OpenSSL source to native-sea-openssl-package/openssl-src
+#  SHIP_SOURCE_TO_AAR=1        -> include OpenSSL source inside AAR assets under assets/openssl/src
+#  INCLUDE_STATIC=0|1          -> include .a static libs in jniLibs/prefab (default 1)
+#  INCLUDE_SHARED=0|1          -> include .so shared libs in jniLibs/prefab (default 1)
+
+SKIP_OPENSSL_BUILD=${SKIP_OPENSSL_BUILD:-0}
+SHIP_OPENSSL_SOURCE=${SHIP_OPENSSL_SOURCE:-0}
+SHIP_SOURCE_TO_AAR=${SHIP_SOURCE_TO_AAR:-0}
+INCLUDE_STATIC=${INCLUDE_STATIC:-1}
+INCLUDE_SHARED=${INCLUDE_SHARED:-1}
+PACKAGE_DIR="$ROOT_DIR/native-sea-openssl-package"
+
 # If the NDK env var isn't set, try to auto-detect under ANDROID_HOME/ndk
 if [ -z "${ANDROID_NDK_ROOT:-}${ANDROID_NDK_HOME:-}" ] && [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
   latest=$(ls -1 "$ANDROID_HOME/ndk" | sort -V | tail -n1 || true)
@@ -18,13 +32,21 @@ if [ -z "${ANDROID_NDK_ROOT:-}${ANDROID_NDK_HOME:-}" ] && [ -n "${ANDROID_HOME:-
   fi
 fi
 
-echo "Building OpenSSL..."
-bash "$ROOT_DIR/scripts/build-openssl.sh"
+if [ "${SKIP_OPENSSL_BUILD}" = "1" ]; then
+  echo "SKIP_OPENSSL_BUILD=1 -> skipping OpenSSL build. Assuming outputs exist in: $OUTDIR"
+else
+  echo "Building OpenSSL..."
+  bash "$ROOT_DIR/scripts/build-openssl.sh"
+fi
 
 # Build and package two AAR variants: debug (with debug symbols) and release.
 
 # Ensure assets dir for headers will be populated from the installs
 mkdir -p "$MODULE_DIR/src/main/assets/openssl/include"
+# optionally include source inside AAR assets
+if [ "${SHIP_SOURCE_TO_AAR}" = "1" ]; then
+  mkdir -p "$MODULE_DIR/src/main/assets/openssl/src"
+fi
 if [ -d "$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}/include" ]; then
   cp -r "$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}/include"/* "$MODULE_DIR/src/main/assets/openssl/include/"
 else
@@ -48,17 +70,19 @@ assemble_variant() {
     mkdir -p "$MODULE_DIR/src/main/jniLibs/$ABI"
     LIBDIR="$OUTDIR/$ABI/$VARIANT/lib"
     if [ -d "$LIBDIR" ]; then
-      cp -v "$LIBDIR"/*.a "$LIBDIR"/*.so 2>/dev/null || true
-      # prefer .so if present
-      for f in "$LIBDIR"/*.so; do
-        [ -e "$f" ] || continue
-        cp -v "$f" "$MODULE_DIR/src/main/jniLibs/$ABI/"
-      done
-      # if only .a exist, copy them too so consumers can link against static libs
-      for f in "$LIBDIR"/*.a; do
-        [ -e "$f" ] || continue
-        cp -v "$f" "$MODULE_DIR/src/main/jniLibs/$ABI/"
-      done
+      # copy according to include flags
+      if [ "${INCLUDE_SHARED}" = "1" ]; then
+        for f in "$LIBDIR"/*.so; do
+          [ -e "$f" ] || continue
+          cp -v "$f" "$MODULE_DIR/src/main/jniLibs/$ABI/"
+        done
+      fi
+      if [ "${INCLUDE_STATIC}" = "1" ]; then
+        for f in "$LIBDIR"/*.a; do
+          [ -e "$f" ] || continue
+          cp -v "$f" "$MODULE_DIR/src/main/jniLibs/$ABI/"
+        done
+      fi
     else
       echo "Warning: libs not found for $ABI/$VARIANT at $LIBDIR"
     fi
@@ -131,12 +155,11 @@ inject_prefab_into_aar() {
     fi
     if [ -d "$ABI_LIBDIR" ]; then
       mkdir -p "$PREFAB_DIR/libs/$ABI"
-      # copy .a and .so if present
       for lib in libcrypto libssl; do
-        if [ -f "$ABI_LIBDIR/${lib}.a" ]; then
+        if [ "${INCLUDE_STATIC}" = "1" ] && [ -f "$ABI_LIBDIR/${lib}.a" ]; then
           cp -v "$ABI_LIBDIR/${lib}.a" "$PREFAB_DIR/libs/$ABI/"
         fi
-        if [ -f "$ABI_LIBDIR/${lib}.so" ]; then
+        if [ "${INCLUDE_SHARED}" = "1" ] && [ -f "$ABI_LIBDIR/${lib}.so" ]; then
           cp -v "$ABI_LIBDIR/${lib}.so" "$PREFAB_DIR/libs/$ABI/"
         fi
       done
@@ -178,3 +201,30 @@ for A_VAR in debug release; do
     inject_prefab_into_aar "$A" "$A_VAR"
   fi
 done
+
+# Optionally include OpenSSL source inside the AAR assets
+if [ "${SHIP_SOURCE_TO_AAR}" = "1" ]; then
+  SRC_DIR="$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}"
+  if [ -d "$SRC_DIR" ]; then
+    echo "Adding OpenSSL source into AAR assets..."
+    # copy into assets so it will be included in future AAR builds (if any)
+    rsync -a --exclude 'build' --exclude '*.o' --exclude '*.a' --exclude '*.so' "$SRC_DIR/" "$MODULE_DIR/src/main/assets/openssl/src/"
+  else
+    echo "Warning: OpenSSL source not found at $SRC_DIR — cannot include in AAR assets"
+  fi
+fi
+
+# Optionally ship OpenSSL source alongside package outputs (release folder)
+if [ "${SHIP_OPENSSL_SOURCE}" = "1" ]; then
+  SRC_DIR="$ROOT_DIR/third_party/src/openssl-${OPENSSL_VERSION}"
+  if [ -d "$SRC_DIR" ]; then
+    DEST="$PACKAGE_DIR/openssl-src-${OPENSSL_VERSION}"
+    mkdir -p "$DEST"
+    echo "Copying OpenSSL source to $DEST"
+    rsync -a --exclude 'build' --exclude '*.o' --exclude '*.a' --exclude '*.so' "$SRC_DIR/" "$DEST/"
+  else
+    echo "Warning: OpenSSL source not found at $SRC_DIR — cannot ship source"
+  fi
+fi
+
+echo "Packaging script complete. Package folder: $PACKAGE_DIR"

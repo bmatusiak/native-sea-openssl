@@ -1,0 +1,128 @@
+name: Build & Release AARs (OpenSSL-aligned)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      OPENSSL_VERSION:
+        description: 'OpenSSL version to build (required for manual dispatch)'
+        required: false
+        default: ''
+      SKIP_OPENSSL_BUILD:
+        description: 'Skip building OpenSSL (0 or 1)'
+        required: false
+        default: '0'
+      SHIP_OPENSSL_SOURCE:
+        description: 'Copy OpenSSL source to package folder (0 or 1)'
+        required: false
+        default: '0'
+      SHIP_SOURCE_TO_AAR:
+        description: 'Include OpenSSL source inside AAR assets (0 or 1)'
+        required: false
+        default: '0'
+      INCLUDE_STATIC:
+        description: 'Include .a static libs in package (0 or 1)'
+        required: false
+        default: '1'
+      INCLUDE_SHARED:
+        description: 'Include .so shared libs in package (0 or 1)'
+        required: false
+        default: '1'
+      NDK:
+        description: 'Android NDK version to install'
+        required: false
+        default: '21.4.7075529'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare inputs and environment
+        id: prepare
+        run: |
+          set -euo pipefail
+          # Derive OPENSSL_VERSION from tag for push events, otherwise use workflow input
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG=${{ github.ref_name }}
+            OPENSSL_VERSION=${TAG#v}
+          else
+            OPENSSL_VERSION="${{ github.event.inputs.OPENSSL_VERSION }}"
+          fi
+          if [ -z "$OPENSSL_VERSION" ]; then
+            echo "OPENSSL_VERSION must be provided (tag or workflow input)"
+            exit 1
+          fi
+          echo "Derived OPENSSL_VERSION=$OPENSSL_VERSION"
+          echo "OPENSSL_VERSION=$OPENSSL_VERSION" >> $GITHUB_ENV
+
+          # Map optional inputs (use defaults when empty)
+          SKIP_OPENSSL_BUILD="${{ github.event.inputs.SKIP_OPENSSL_BUILD }}"
+          SKIP_OPENSSL_BUILD=${SKIP_OPENSSL_BUILD:-0}
+          echo "SKIP_OPENSSL_BUILD=$SKIP_OPENSSL_BUILD" >> $GITHUB_ENV
+
+          SHIP_OPENSSL_SOURCE="${{ github.event.inputs.SHIP_OPENSSL_SOURCE }}"
+          SHIP_OPENSSL_SOURCE=${SHIP_OPENSSL_SOURCE:-0}
+          echo "SHIP_OPENSSL_SOURCE=$SHIP_OPENSSL_SOURCE" >> $GITHUB_ENV
+
+          SHIP_SOURCE_TO_AAR="${{ github.event.inputs.SHIP_SOURCE_TO_AAR }}"
+          SHIP_SOURCE_TO_AAR=${SHIP_SOURCE_TO_AAR:-0}
+          echo "SHIP_SOURCE_TO_AAR=$SHIP_SOURCE_TO_AAR" >> $GITHUB_ENV
+
+          INCLUDE_STATIC="${{ github.event.inputs.INCLUDE_STATIC }}"
+          INCLUDE_STATIC=${INCLUDE_STATIC:-1}
+          echo "INCLUDE_STATIC=$INCLUDE_STATIC" >> $GITHUB_ENV
+
+          INCLUDE_SHARED="${{ github.event.inputs.INCLUDE_SHARED }}"
+          INCLUDE_SHARED=${INCLUDE_SHARED:-1}
+          echo "INCLUDE_SHARED=$INCLUDE_SHARED" >> $GITHUB_ENV
+
+          NDK_VER="${{ github.event.inputs.NDK }}"
+          NDK_VER=${NDK_VER:-21.4.7075529}
+          echo "NDK=$NDK_VER" >> $GITHUB_ENV
+
+      - name: Setup Java (for Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Setup Android NDK (needed for native build)
+        uses: r0adkll/setup-android@v2
+        with:
+          ndk: ${{ env.NDK }}
+
+      - name: Show environment
+        run: |
+          echo "OPENSSL_VERSION=$OPENSSL_VERSION"
+          echo "SKIP_OPENSSL_BUILD=$SKIP_OPENSSL_BUILD"
+          echo "SHIP_OPENSSL_SOURCE=$SHIP_OPENSSL_SOURCE"
+          echo "SHIP_SOURCE_TO_AAR=$SHIP_SOURCE_TO_AAR"
+          echo "INCLUDE_STATIC=$INCLUDE_STATIC"
+          echo "INCLUDE_SHARED=$INCLUDE_SHARED"
+          echo "NDK=$NDK"
+          echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT:-$ANDROID_NDK_HOME}"
+
+      - name: Run packaging script
+        env:
+          OPENSSL_VERSION: ${{ env.OPENSSL_VERSION }}
+          SKIP_OPENSSL_BUILD: ${{ env.SKIP_OPENSSL_BUILD }}
+          SHIP_OPENSSL_SOURCE: ${{ env.SHIP_OPENSSL_SOURCE }}
+          SHIP_SOURCE_TO_AAR: ${{ env.SHIP_SOURCE_TO_AAR }}
+          INCLUDE_STATIC: ${{ env.INCLUDE_STATIC }}
+          INCLUDE_SHARED: ${{ env.INCLUDE_SHARED }}
+        run: |
+          chmod +x ./scripts/package-aar.sh
+          ./scripts/package-aar.sh
+
+      - name: Create GitHub Release and upload package folder
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          files: |
+            native-sea-openssl-package/**
+          overwrite: true
