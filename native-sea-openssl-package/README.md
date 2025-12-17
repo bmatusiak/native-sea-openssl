@@ -1,74 +1,85 @@
-native-sea-openssl-package
+# native-sea-openssl-package
 
-This package provides a prebuilt OpenSSL AAR produced by the `native-sea-openssl` project and a tiny JS wrapper.
 
-Included artifact
-- `android/native-sea-openssl.aar` — AAR built from `native-sea-openssl` containing per-ABI `.so` under `jniLibs` and headers under `assets/openssl`.
+React Native (C++ / Prefab consumers)
 
-Quick install (local, using the included AAR)
+If your React Native app builds native C++ code that needs to link against OpenSSL headers/libs in this AAR (for example when using a CMake `externalNativeBuild`), prefer consuming the AAR's Prefab metadata at build time rather than extracting files into source.
 
-1. From your app repo install this package (local path for development):
+Two consumer options:
 
-   npm install --save /path/to/native-sea-openssl/native-sea-openssl-package
+- Simple AAR with prebuilt .so files (no CMake integration required)
 
-2. In your Android app module `build.gradle` add the dependency pointing at the AAR file shipped in `node_modules`:
+  If the AAR contains per-ABI shared libraries under `jniLibs/` and the Java/Kotlin surface you need, consumers can add the AAR directly:
 
-   dependencies {
-     implementation files('node_modules/native-sea-openssl-package/android/native-sea-openssl.aar')
-   }
+  ```gradle
+  dependencies {
+      implementation files('node_modules/native-sea-openssl-package/android/native-sea-openssl.aar')
+  }
+  ```
 
-3. Rebuild your Android app. The AAR contains the per-ABI `.so` files and headers; no extra native build steps are required.
+  This works when the AAR provides `.so` files and a Java API and no additional native compilation is required in the app.
 
-Recommended production approach (preferred)
+- AAR with Prefab metadata (C++ consumers who build with CMake)
 
-Publish the AAR to GitHub Packages (Maven) and let Gradle fetch it during the app build. This is cleaner for CI and consumers.
+  If you need to build C++ code in your app and link to OpenSSL via Prefab, use a short Gradle snippet that unpacks only the `prefab/` tree from the AAR into a build intermediate and passes that folder to CMake. Example additions to your app module `app/build.gradle`:
 
-Default Maven coordinates used by CI and `native-sea-openssl/build.gradle`:
+  ```gradle
+  // allow Gradle to find the local AAR
+  repositories {
+      flatDir { dirs "$projectDir/../../node_modules/native-sea-openssl-package/android" }
+  }
 
-- GroupId: `com.example`
-- ArtifactId: `native-sea-openssl`
-- Version: `3.0.11`
+  dependencies {
+      implementation(name: "native-sea-openssl-release", ext: "aar")
+  }
 
-If published to GitHub Packages the Maven repo URL is:
+  // unpack Prefab metadata from the AAR into an intermediates folder
+  def nativeSeaAar = file("$projectDir/../../node_modules/native-sea-openssl-package/android/native-sea-openssl-release.aar")
+  task unpackNativeSeaAar(type: Copy) {
+      onlyIf { nativeSeaAar.exists() }
+      from { zipTree(nativeSeaAar) }
+      include "prefab/**"
+      into "$buildDir/intermediates/nativeSeaAar"
+  }
+  preBuild.dependsOn unpackNativeSeaAar
 
+  // Tell CMake where the unpacked Prefab module lives; put this under defaultConfig
+  defaultConfig {
+      externalNativeBuild {
+          cmake {
+              // Match the path your CMakeLists.txt expects
+              arguments "-DOPENSSL_PREFAB_DIR=${project.buildDir}/intermediates/nativeSeaAar/prefab/modules/openssl"
+          }
+      }
+  }
+  ```
+
+  Then in your `app/src/main/cpp/CMakeLists.txt` you can inspect `OPENSSL_PREFAB_DIR` and import the prebuilt libraries / headers from there (or fall back to `find_package(openssl CONFIG REQUIRED)` if you prefer). This approach avoids committing extracted headers/libs into source and keeps the unpacking local to the Gradle build.
+
+If you'd like, I can add a ready-to-copy snippet for your `CMakeLists.txt` that imports `libopenssl.a` from the unpacked Prefab and sets include paths — tell me which consumption mode you prefer and I'll add it to this README or a separate example file.
+
+CMake import snippet
+
+Copy this example into your `app/src/main/cpp/CMakeLists.txt` (adjust `your_native_target` to the name of your native library target). It checks for the Gradle-provided `OPENSSL_PREFAB_DIR` (passed via `-DOPENSSL_PREFAB_DIR=...`) and imports the prebuilt library from the unpacked Prefab; otherwise it falls back to `find_package` for Prefab-aware setups.
+
+```cmake
+if(DEFINED OPENSSL_PREFAB_DIR)
+    set(OPENSSL_PREFAB "${OPENSSL_PREFAB_DIR}")
+    set(OPENSSL_INCLUDE_DIR "${OPENSSL_PREFAB}/include")
+    set(OPENSSL_LIB_DIR "${OPENSSL_PREFAB}/libs/${ANDROID_ABI}")
+
+    add_library(openssl_prebuilt STATIC IMPORTED)
+    set_target_properties(openssl_prebuilt PROPERTIES
+        IMPORTED_LOCATION "${OPENSSL_LIB_DIR}/libopenssl.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${OPENSSL_INCLUDE_DIR}"
+    )
+
+    target_include_directories(your_native_target PRIVATE "${OPENSSL_INCLUDE_DIR}")
+    target_link_libraries(your_native_target PRIVATE openssl_prebuilt)
+else()
+    find_package(openssl CONFIG REQUIRED)
+    target_link_libraries(your_native_target PRIVATE openssl::openssl)
+endif()
 ```
-https://maven.pkg.github.com/<GITHUB_OWNER>/<REPO>
-```
 
-Example `android/build.gradle` repository + dependency configuration for a consumer app:
-
-```gradle
-allprojects {
-    repositories {
-        maven {
-            url = uri("https://maven.pkg.github.com/<GITHUB_OWNER>/<REPO>")
-            credentials {
-                username = project.findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
-                password = project.findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN')
-            }
-        }
-        // other repos: mavenCentral(), google(), etc.
-    }
-}
-
-dependencies {
-    implementation 'com.example:native-sea-openssl:3.0.11'
-}
-```
-
-Notes about GitHub Packages
-- The CI workflow in this repo publishes the AAR to `https://maven.pkg.github.com/<owner>/<repo>` when you push a tag (see `.github/workflows/publish-aar.yml`). Gradle consumes it using the credentials shown above.
-
-Alternative (npm-hosted AAR — easier but heavier)
-
-- You can publish this JS package to npm with the AAR included under `android/`. Consumers then `npm install native-sea-openssl-package` and use the `implementation files('node_modules/.../native-sea-openssl.aar')` approach shown in Quick install. This works but places binaries in npm rather than Maven and is less ideal for large-scale CI.
-
-Exposing native APIs to JS
-
-This package currently ships the AAR only. To call OpenSSL from React Native you should implement a Java/Kotlin native module inside this package that wraps the APIs you need (and include it in the AAR) — then the JS `index.js` will import the native module and surface JS-friendly functions.
-
-Next steps I can help with
-- Implement a simple Java/Kotlin native module that exposes a small OpenSSL API surface and include it in the AAR.
-- Update `groupId`/`artifactId`/`version` in `native-sea-openssl/build.gradle` if you want different coordinates before publishing.
-
-If you'd like, I can also prepare a short example React Native app that demonstrates `implementation files('node_modules/...')` and a second example that consumes the published Maven artifact.
+This keeps unpacking local to the Gradle build and lets you link against the AAR's Prefab-provided headers and static libraries without committing extracted files into your source tree.
