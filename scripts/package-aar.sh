@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Builds OpenSSL and packages an AAR containing .so files and headers.
 
-OPENSSL_VERSION=${OPENSSL_VERSION:-"3.0.11"}
+OPENSSL_VERSION=${OPENSSL_VERSION:-"3.5.4"}
+export OPENSSL_VERSION
 ROOT_DIR="$(pwd)"
 MODULE_DIR="$ROOT_DIR/native-sea-openssl"
 OUTDIR="$ROOT_DIR/third_party/openssl/${OPENSSL_VERSION}"

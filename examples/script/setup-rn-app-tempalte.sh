@@ -15,3 +15,5 @@ rm -rf ./package-lock.json
 echo "package-lock.json" >> ./.gitignore
 rm -rf ./App.tsx
 rm -rf ./__tests__/App.test.tsx
+cp ../template/App.tsx ./
+cp ../template/App.test.tsx ./__tests__/

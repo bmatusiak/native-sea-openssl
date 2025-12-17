@@ -105,6 +105,11 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
 }
 
 dependencies {
@@ -116,4 +121,15 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+}
+
+// Add local AAR dependency if present in libs
+repositories {
+    flatDir {
+        dirs "$projectDir/../../node_modules/native-sea-openssl/android"
+    }
+}
+
+dependencies {
+    implementation(name: "native-sea-openssl-release", ext: "aar")
 }
