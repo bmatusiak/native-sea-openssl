@@ -210,11 +210,8 @@ jobs:
           echo "Looking up release for tag: $TAG"
           http_code=$(curl -s -o /tmp/release.json -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" "$API/releases/tags/$TAG")
           if [ "$http_code" = "200" ]; then
-            RELEASE_ID=$(python - <<PY
-import json
-print(json.load(open('/tmp/release.json'))['id'])
-PY
-)
+            # parse id from JSON without relying on python/jq
+            RELEASE_ID=$(grep -o '"id"[[:space:]]*:[[:space:]]*[0-9]\+' /tmp/release.json | head -n1 | sed 's/[^0-9]*//g' || true)
             echo "Found existing release id: $RELEASE_ID"
           else
             echo "Release not found (http $http_code) — creating new release $TAG"
@@ -226,11 +223,7 @@ PY
               cat /tmp/create.json >&2 || true
               exit 1
             fi
-            RELEASE_ID=$(python - <<PY
-import json
-print(json.load(open('/tmp/create.json'))['id'])
-PY
-)
+            RELEASE_ID=$(grep -o '"id"[[:space:]]*:[[:space:]]*[0-9]\+' /tmp/create.json | head -n1 | sed 's/[^0-9]*//g' || true)
             echo "Created release id: $RELEASE_ID"
           fi
 
