@@ -174,15 +174,27 @@ jobs:
           for d in artifacts/*; do
             cp -a "$d"/* . || true
           done
+      - name: Detect restored OpenSSL outputs and skip build if present
+        run: |
+          set -euo pipefail
+          if [ -d "third_party/openssl/${{ needs.prepare.outputs.OPENSSL_VERSION }}" ]; then
+            echo "Found restored OpenSSL outputs; setting SKIP_OPENSSL_BUILD=1"
+            echo "SKIP_OPENSSL_BUILD=1" >> $GITHUB_ENV
+          else
+            echo "No restored OpenSSL outputs found; packaging step will build OpenSSL"
+          fi
       - name: Run packaging script
         env:
           OPENSSL_VERSION: ${{ needs.prepare.outputs.OPENSSL_VERSION }}
-          SKIP_OPENSSL_BUILD: ${{ needs.prepare.outputs.SKIP_OPENSSL_BUILD }}
           SHIP_OPENSSL_SOURCE: ${{ needs.prepare.outputs.SHIP_OPENSSL_SOURCE }}
           SHIP_SOURCE_TO_AAR: ${{ needs.prepare.outputs.SHIP_SOURCE_TO_AAR }}
           INCLUDE_STATIC: ${{ needs.prepare.outputs.INCLUDE_STATIC }}
           INCLUDE_SHARED: ${{ needs.prepare.outputs.INCLUDE_SHARED }}
         run: |
+          set -euo pipefail
+          # Respect SKIP_OPENSSL_BUILD set earlier by the restore detection step (or workflow input)
+          : "SKIP_OPENSSL_BUILD=${SKIP_OPENSSL_BUILD:-${{ needs.prepare.outputs.SKIP_OPENSSL_BUILD }}}"
+          echo "SKIP_OPENSSL_BUILD=$SKIP_OPENSSL_BUILD"
           chmod +x ./scripts/package-aar.sh
           ./scripts/package-aar.sh
       - name: Create GitHub Release and upload package folder
