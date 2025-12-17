@@ -21,7 +21,9 @@ react {
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
     //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // debuggableVariants = ["liteDebug", "prodDebug"]
+    // To force bundling even for the debug variant (so the APK contains the JS bundle
+    // and no Metro server is required), set this to an empty list.
+    debuggableVariants = []
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -42,6 +44,8 @@ react {
     //   A list of extra flags to pass to the 'bundle' commands.
     //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
     // extraPackagerArgs = []
+    // Ensure the debug bundle is built in dev mode (so dev=true inside the bundle)
+    extraPackagerArgs = ["--dev", "true"]
 
     /* Hermes Commands */
     //   The hermes compiler command to run. By default it is 'hermesc'

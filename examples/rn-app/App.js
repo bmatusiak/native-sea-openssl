@@ -11,8 +11,10 @@ export default function App() {
         setLoading(true);
         try {
             const res = await NativeOpenSSL.sha256('test');
+            console.log('NativeOpenSSL.sha256 =>', res);
             setHash(res || '');
         } catch (e) {
+            console.log('NativeOpenSSL.sha256 error', e);
             setHash('error');
         }
         setLoading(false);
@@ -35,7 +37,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 24, justifyContent: 'flex-start' },
+    container: { flex: 1, padding: 24, justifyContent: 'flex-start', backgroundColor: '#fff' },
     title: { fontSize: 20, fontWeight: '600', marginBottom: 12 },
     label: { marginTop: 8, fontWeight: '500' },
     input: { marginBottom: 8, color: '#333' },
