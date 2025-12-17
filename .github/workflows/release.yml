@@ -42,20 +42,23 @@ permissions:
   packages: write
 
 jobs:
-  build-and-release:
+  prepare:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_SDK_ROOT: $HOME/android-sdk
-      ANDROID_HOME: $HOME/android-sdk
+    outputs:
+      OPENSSL_VERSION: ${{ steps.set.outputs.OPENSSL_VERSION }}
+      NDK: ${{ steps.set.outputs.NDK }}
+      SKIP_OPENSSL_BUILD: ${{ steps.set.outputs.SKIP_OPENSSL_BUILD }}
+      SHIP_OPENSSL_SOURCE: ${{ steps.set.outputs.SHIP_OPENSSL_SOURCE }}
+      SHIP_SOURCE_TO_AAR: ${{ steps.set.outputs.SHIP_SOURCE_TO_AAR }}
+      INCLUDE_STATIC: ${{ steps.set.outputs.INCLUDE_STATIC }}
+      INCLUDE_SHARED: ${{ steps.set.outputs.INCLUDE_SHARED }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Prepare inputs and environment
-        id: prepare
+      - name: Derive inputs
+        id: set
         run: |
           set -euo pipefail
-          # Derive OPENSSL_VERSION from tag for push events, otherwise use workflow input
           if [ "${{ github.event_name }}" = "push" ]; then
             TAG=${{ github.ref_name }}
             OPENSSL_VERSION=${TAG#v}
@@ -66,43 +69,85 @@ jobs:
             echo "OPENSSL_VERSION must be provided (tag or workflow input)"
             exit 1
           fi
-          echo "Derived OPENSSL_VERSION=$OPENSSL_VERSION"
-          echo "OPENSSL_VERSION=$OPENSSL_VERSION" >> $GITHUB_ENV
+          echo "::set-output name=OPENSSL_VERSION::$OPENSSL_VERSION"
+          echo "::set-output name=NDK::${{ github.event.inputs.NDK }}"
+          echo "::set-output name=SKIP_OPENSSL_BUILD::${{ github.event.inputs.SKIP_OPENSSL_BUILD }}"
+          echo "::set-output name=SHIP_OPENSSL_SOURCE::${{ github.event.inputs.SHIP_OPENSSL_SOURCE }}"
+          echo "::set-output name=SHIP_SOURCE_TO_AAR::${{ github.event.inputs.SHIP_SOURCE_TO_AAR }}"
+          echo "::set-output name=INCLUDE_STATIC::${{ github.event.inputs.INCLUDE_STATIC }}"
+          echo "::set-output name=INCLUDE_SHARED::${{ github.event.inputs.INCLUDE_SHARED }}"
 
-          # Map optional inputs (use defaults when empty)
-          SKIP_OPENSSL_BUILD="${{ github.event.inputs.SKIP_OPENSSL_BUILD }}"
-          SKIP_OPENSSL_BUILD=${SKIP_OPENSSL_BUILD:-0}
-          echo "SKIP_OPENSSL_BUILD=$SKIP_OPENSSL_BUILD" >> $GITHUB_ENV
+  build-openssl:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
+        build_type: [release, debug]
+    env:
+      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+      ANDROID_HOME: ${{ runner.temp }}/android-sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Install Android SDK & NDK (sdkmanager)
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y unzip curl
+          ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          TMP_ZIP="/tmp/cmdline-tools.zip"
+          curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o "$TMP_ZIP"
+          unzip -q "$TMP_ZIP" -d "$ANDROID_SDK_ROOT/cmdline-tools"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/bin:$PATH"
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "ndk;${{ needs.prepare.outputs.NDK }}"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${{ needs.prepare.outputs.NDK }}" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+      - name: Build OpenSSL for matrix entry
+        env:
+          OPENSSL_VERSION: ${{ needs.prepare.outputs.OPENSSL_VERSION }}
+          ABI: ${{ matrix.abi }}
+          BUILD_TYPE: ${{ matrix.build_type }}
+        run: |
+          set -euo pipefail
+          echo "Building for ABI=$ABI BUILD_TYPE=$BUILD_TYPE"
+          # Run the build script restricted to the single ABI/build type
+          ABIS=("$ABI")
+          BUILD_TYPES=("$BUILD_TYPE")
+          chmod +x ./scripts/build-openssl.sh
+          ./scripts/build-openssl.sh
+      - name: Upload OpenSSL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openssl-${{ needs.prepare.outputs.OPENSSL_VERSION }}-${{ matrix.abi }}-${{ matrix.build_type }}
+          path: third_party/openssl/${{ needs.prepare.outputs.OPENSSL_VERSION }}/${{ matrix.abi }}/${{ matrix.build_type }}
 
-          SHIP_OPENSSL_SOURCE="${{ github.event.inputs.SHIP_OPENSSL_SOURCE }}"
-          SHIP_OPENSSL_SOURCE=${SHIP_OPENSSL_SOURCE:-0}
-          echo "SHIP_OPENSSL_SOURCE=$SHIP_OPENSSL_SOURCE" >> $GITHUB_ENV
-
-          SHIP_SOURCE_TO_AAR="${{ github.event.inputs.SHIP_SOURCE_TO_AAR }}"
-          SHIP_SOURCE_TO_AAR=${SHIP_SOURCE_TO_AAR:-0}
-          echo "SHIP_SOURCE_TO_AAR=$SHIP_SOURCE_TO_AAR" >> $GITHUB_ENV
-
-          INCLUDE_STATIC="${{ github.event.inputs.INCLUDE_STATIC }}"
-          INCLUDE_STATIC=${INCLUDE_STATIC:-1}
-          echo "INCLUDE_STATIC=$INCLUDE_STATIC" >> $GITHUB_ENV
-
-          INCLUDE_SHARED="${{ github.event.inputs.INCLUDE_SHARED }}"
-          INCLUDE_SHARED=${INCLUDE_SHARED:-1}
-          echo "INCLUDE_SHARED=$INCLUDE_SHARED" >> $GITHUB_ENV
-
-          NDK_VER="${{ github.event.inputs.NDK }}"
-          NDK_VER=${NDK_VER:-21.4.7075529}
-          echo "NDK=$NDK_VER" >> $GITHUB_ENV
-
+  package:
+    needs: build-openssl
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - name: Show downloaded artifacts
+        run: ls -R artifacts || true
       - name: Setup Java (for Gradle)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      - name: Install Android SDK & NDK (sdkmanager)
-        # Use sdkmanager to install the requested NDK version. This avoids relying on
-        # third-party actions with differing inputs and lets us control Java version.
+      - name: Prepare SDK (sdkmanager)
         run: |
           set -euo pipefail
           sudo apt-get update
@@ -114,35 +159,27 @@ jobs:
           unzip -q "$TMP_ZIP" -d "$ANDROID_SDK_ROOT/cmdline-tools"
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/bin:$PATH"
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
-          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "ndk;${{ env.NDK }}"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${{ env.NDK }}" >> $GITHUB_ENV
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-           # Ensure Gradle sees a single SDK location
-           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-
-      - name: Show environment
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+      - name: Restore built outputs into third_party
         run: |
-          echo "OPENSSL_VERSION=$OPENSSL_VERSION"
-          echo "SKIP_OPENSSL_BUILD=$SKIP_OPENSSL_BUILD"
-          echo "SHIP_OPENSSL_SOURCE=$SHIP_OPENSSL_SOURCE"
-          echo "SHIP_SOURCE_TO_AAR=$SHIP_SOURCE_TO_AAR"
-          echo "INCLUDE_STATIC=$INCLUDE_STATIC"
-          echo "INCLUDE_SHARED=$INCLUDE_SHARED"
-          echo "NDK=$NDK"
-          echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT:-$ANDROID_NDK_HOME}"
-
+          set -euo pipefail
+          mkdir -p third_party/openssl/${{ needs.prepare.outputs.OPENSSL_VERSION }}
+          for d in artifacts/*; do
+            cp -a "$d"/* . || true
+          done
       - name: Run packaging script
         env:
-          OPENSSL_VERSION: ${{ env.OPENSSL_VERSION }}
-          SKIP_OPENSSL_BUILD: ${{ env.SKIP_OPENSSL_BUILD }}
-          SHIP_OPENSSL_SOURCE: ${{ env.SHIP_OPENSSL_SOURCE }}
-          SHIP_SOURCE_TO_AAR: ${{ env.SHIP_SOURCE_TO_AAR }}
-          INCLUDE_STATIC: ${{ env.INCLUDE_STATIC }}
-          INCLUDE_SHARED: ${{ env.INCLUDE_SHARED }}
+          OPENSSL_VERSION: ${{ needs.prepare.outputs.OPENSSL_VERSION }}
+          SKIP_OPENSSL_BUILD: ${{ needs.prepare.outputs.SKIP_OPENSSL_BUILD }}
+          SHIP_OPENSSL_SOURCE: ${{ needs.prepare.outputs.SHIP_OPENSSL_SOURCE }}
+          SHIP_SOURCE_TO_AAR: ${{ needs.prepare.outputs.SHIP_SOURCE_TO_AAR }}
+          INCLUDE_STATIC: ${{ needs.prepare.outputs.INCLUDE_STATIC }}
+          INCLUDE_SHARED: ${{ needs.prepare.outputs.INCLUDE_SHARED }}
         run: |
           chmod +x ./scripts/package-aar.sh
           ./scripts/package-aar.sh
-
       - name: Create GitHub Release and upload package folder
         uses: ncipollo/release-action@v1
         with:
