@@ -15,8 +15,17 @@ if [ -z "$NDK" ] && [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; th
   fi
 fi
 API=${API:-21}
+# Default ABIs / build types — allow overriding via environment variables
 ABIS=(armeabi-v7a arm64-v8a x86 x86_64)
 BUILD_TYPES=(release debug)
+
+# If the workflow sets a single ABI or BUILD_TYPE, honor that to restrict work
+if [ -n "${ABI:-}" ]; then
+  ABIS=("$ABI")
+fi
+if [ -n "${BUILD_TYPE:-}" ]; then
+  BUILD_TYPES=("$BUILD_TYPE")
+fi
 OUTDIR="$(pwd)/third_party/openssl/${OPENSSL_VERSION}"
 
 if [ -z "$NDK" ]; then
