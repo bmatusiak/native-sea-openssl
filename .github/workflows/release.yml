@@ -227,17 +227,27 @@ jobs:
             echo "Created release id: $RELEASE_ID"
           fi
 
-          # Upload artifacts found under native-sea-openssl-package/**
+          # Create tar.gz and zip archives of the package folder for npm consumption
           if [ ! -d native-sea-openssl-package ]; then
             echo "No package folder found to upload: native-sea-openssl-package" >&2
             exit 1
           fi
-          shopt -s globstar nullglob
-          for f in native-sea-openssl-package/**; do
-            [ -f "$f" ] || continue
+          echo "Creating archives native-sea-openssl.tar.gz and native-sea-openssl.zip"
+          rm -f native-sea-openssl.tar.gz native-sea-openssl.zip || true
+          (cd native-sea-openssl-package && tar -czf ../native-sea-openssl.tar.gz .)
+          (cd native-sea-openssl-package && zip -r ../native-sea-openssl.zip .) >/dev/null
+
+          for f in native-sea-openssl.tar.gz native-sea-openssl.zip; do
+            if [ ! -f "$f" ]; then
+              echo "Expected archive missing: $f" >&2
+              continue
+            fi
             name=$(basename "$f")
             echo "Uploading $f as $name"
-            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" \
+            # choose proper content-type for archives
+            content_type="application/octet-stream"
+            if [[ "$f" == *.tar.gz ]]; then content_type="application/gzip"; fi
+            if [[ "$f" == *.zip ]]; then content_type="application/zip"; fi
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: $content_type" \
               --data-binary @"$f" "$UPLOADS/$RELEASE_ID/assets?name=$name" || true
           done
-          shopt -u globstar nullglob
