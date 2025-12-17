@@ -88,6 +88,11 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        externalNativeBuild {
+            cmake {
+                arguments "-DOPENSSL_PREFAB_DIR=${project.buildDir}/intermediates/nativeSeaAar/prefab/modules/openssl"
+            }
+        }
     }
     signingConfigs {
         debug {
@@ -137,3 +142,15 @@ repositories {
 dependencies {
     implementation(name: "native-sea-openssl-release", ext: "aar")
 }
+
+// Unpack only the prefab files from the AAR into the build directory so
+// CMake can consume headers/libs without extracting into source control.
+def nativeSeaAar = file("$projectDir/../../node_modules/native-sea-openssl/android/native-sea-openssl-release.aar")
+task unpackNativeSeaAar(type: Copy) {
+    onlyIf { nativeSeaAar.exists() }
+    from { zipTree(nativeSeaAar) }
+    include "prefab/**"
+    into "$buildDir/intermediates/nativeSeaAar"
+}
+
+preBuild.dependsOn unpackNativeSeaAar
