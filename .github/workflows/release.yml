@@ -84,9 +84,8 @@ jobs:
       matrix:
         abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
         build_type: [release, debug]
-    env:
-      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
-      ANDROID_HOME: ${{ runner.temp }}/android-sdk
+    # Do not set runner.temp in YAML expressions (not supported). We'll use
+    # the runtime $RUNNER_TEMP variable inside the shell steps instead.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,7 +99,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y unzip curl
-          ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}"
+          ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk"
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           TMP_ZIP="/tmp/cmdline-tools.zip"
           curl -sSL https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o "$TMP_ZIP"
