@@ -203,5 +203,7 @@ jobs:
           tag: ${{ github.ref_name }}
           artifacts: |
             native-sea-openssl-package/**
-          skipIfReleaseExists: true
+          # Allow uploading artifacts even if the release was created via the GitHub UI
+          # (setting this to false ensures we attach artifacts to an existing release)
+          skipIfReleaseExists: false
           makeLatest: true
