@@ -74,13 +74,14 @@ jobs:
           if [ -z "$NDK_INPUT" ]; then
             NDK_INPUT="21.4.7075529"
           fi
-          echo "::set-output name=OPENSSL_VERSION::$OPENSSL_VERSION"
-          echo "::set-output name=NDK::$NDK_INPUT"
-          echo "::set-output name=SKIP_OPENSSL_BUILD::${{ github.event.inputs.SKIP_OPENSSL_BUILD }}"
-          echo "::set-output name=SHIP_OPENSSL_SOURCE::${{ github.event.inputs.SHIP_OPENSSL_SOURCE }}"
-          echo "::set-output name=SHIP_SOURCE_TO_AAR::${{ github.event.inputs.SHIP_SOURCE_TO_AAR }}"
-          echo "::set-output name=INCLUDE_STATIC::${{ github.event.inputs.INCLUDE_STATIC }}"
-          echo "::set-output name=INCLUDE_SHARED::${{ github.event.inputs.INCLUDE_SHARED }}"
+          # Use the Actions environment file to set step outputs (set-output is deprecated)
+          echo "OPENSSL_VERSION=$OPENSSL_VERSION" >> $GITHUB_OUTPUT
+          echo "NDK=$NDK_INPUT" >> $GITHUB_OUTPUT
+          echo "SKIP_OPENSSL_BUILD=${{ github.event.inputs.SKIP_OPENSSL_BUILD }}" >> $GITHUB_OUTPUT
+          echo "SHIP_OPENSSL_SOURCE=${{ github.event.inputs.SHIP_OPENSSL_SOURCE }}" >> $GITHUB_OUTPUT
+          echo "SHIP_SOURCE_TO_AAR=${{ github.event.inputs.SHIP_SOURCE_TO_AAR }}" >> $GITHUB_OUTPUT
+          echo "INCLUDE_STATIC=${{ github.event.inputs.INCLUDE_STATIC }}" >> $GITHUB_OUTPUT
+          echo "INCLUDE_SHARED=${{ github.event.inputs.INCLUDE_SHARED }}" >> $GITHUB_OUTPUT
 
   build-openssl:
     needs: prepare
