@@ -55,7 +55,15 @@ for ABI in "${ABIS[@]}"; do
   # prefer release installs
   SRC_INC="$OUTDIR/$ABI/release/include"
   if [ -d "$SRC_INC" ]; then
-    cp -r "$SRC_INC"/* "$MODULE_DIR/src/main/assets/openssl/include/"
+    # copy only if there are files to avoid 'cp: cannot stat .../*' errors
+    shopt -s nullglob
+    inc_files=("$SRC_INC"/*)
+    shopt -u nullglob
+    if [ ${#inc_files[@]} -gt 0 ]; then
+      cp -r "${inc_files[@]}" "$MODULE_DIR/src/main/assets/openssl/include/"
+    else
+      echo "Warning: include directory exists but contains no files: $SRC_INC"
+    fi
     COPIED=1
     break
   fi
@@ -154,7 +162,14 @@ inject_prefab_into_aar() {
   # Copy headers
   mkdir -p "$PREFAB_DIR/include"
   if [ -d "$MODULE_DIR/src/main/assets/openssl/include" ]; then
-    cp -a "$MODULE_DIR/src/main/assets/openssl/include/"* "$PREFAB_DIR/include/"
+    shopt -s nullglob
+    header_files=("$MODULE_DIR/src/main/assets/openssl/include/"*)
+    shopt -u nullglob
+    if [ ${#header_files[@]} -gt 0 ]; then
+      cp -a "${header_files[@]}" "$PREFAB_DIR/include/"
+    else
+      echo "Warning: headers directory exists but is empty; skipping header copy into prefab"
+    fi
   else
     echo "Warning: headers not found to include in prefab"
   fi
