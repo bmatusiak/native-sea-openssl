@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Builds OpenSSL for common Android ABIs and installs outputs under third_party/openssl/<version>/<abi>
 
-OPENSSL_VERSION=${OPENSSL_VERSION:-"3.0.11"}
+OPENSSL_VERSION=${OPENSSL_VERSION:-"3.5.4"}
 NDK=${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-""}}
 # Auto-detect NDK under ANDROID_HOME/ndk if not provided
 if [ -z "$NDK" ] && [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
