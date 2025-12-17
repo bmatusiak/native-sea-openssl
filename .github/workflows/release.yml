@@ -170,10 +170,26 @@ jobs:
       - name: Restore built outputs into third_party
         run: |
           set -euo pipefail
+          set -x
           mkdir -p third_party/openssl/${{ needs.prepare.outputs.OPENSSL_VERSION }}
           for d in artifacts/*; do
-            cp -a "$d"/* . || true
+            [ -d "$d" ] || continue
+            base=$(basename "$d")
+            # Expect artifact names like: openssl-<version>-<abi>-<build_type>
+            if [[ "$base" =~ ^openssl-([0-9]+\.[0-9]+\.[0-9]+)-([^/]+)-([^/]+)$ ]]; then
+              ver="${BASH_REMATCH[1]}"
+              abi="${BASH_REMATCH[2]}"
+              btype="${BASH_REMATCH[3]}"
+              dest="third_party/openssl/$ver/$abi/$btype"
+              echo "Restoring artifact $base -> $dest"
+              mkdir -p "$dest"
+              cp -a "$d"/* "$dest/" || true
+            else
+              echo "Unknown artifact layout for $base; copying contents into third_party/openssl/"
+              cp -a "$d"/* third_party/openssl/ || true
+            fi
           done
+          echo "Restored third_party tree:" && ls -R third_party || true
       - name: Detect restored OpenSSL outputs and skip build if present
         run: |
           set -euo pipefail
