@@ -35,6 +35,12 @@ on:
         required: false
         default: '21.4.7075529'
 
+# Ensure the workflow has the necessary token permissions to create releases
+# and publish packages. These can be tightened as needed.
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -92,7 +98,9 @@ jobs:
           java-version: '11'
 
       - name: Setup Android NDK (needed for native build)
-        uses: r0adkll/setup-android@v2
+        # Some runners may not resolve r0adkll/setup-android; use android-actions/setup-android
+        # or install the NDK via sdkmanager (fallback) if your environment requires it.
+        uses: android-actions/setup-android@v2
         with:
           ndk: ${{ env.NDK }}
 
