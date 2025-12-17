@@ -125,10 +125,9 @@ for ABI in "${ABIS[@]}"; do
     fi
 
     # Configure and build in the workdir; install into the ABI+type-specific output directory
-    # Do not pass -D__ANDROID_API__ here because the NDK clang driver and headers
-    # already define the macro (passing it twice triggers redefinition warnings).
-    ./Configure $TARGET no-shared no-tests --prefix="$BUILD_OUT" -D__ANDROID_API__=$API || \
-      ./Configure $TARGET no-shared no-tests --prefix="$BUILD_OUT"
+    # Let the NDK toolchain and OpenSSL Configure choose the API define; do not
+    # force -D__ANDROID_API__ here to avoid duplicate-definition warnings.
+    ./Configure $TARGET no-shared no-tests --prefix="$BUILD_OUT"
     make -j$(nproc)
     make install_sw
 
