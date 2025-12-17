@@ -147,6 +147,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
-          files: |
+          artifacts: |
             native-sea-openssl-package/**
-          overwrite: true
+          skipIfReleaseExists: true
+          makeLatest: true
