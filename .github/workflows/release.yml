@@ -69,8 +69,13 @@ jobs:
             echo "OPENSSL_VERSION must be provided (tag or workflow input)"
             exit 1
           fi
+          # Ensure NDK has a sensible default when not provided via workflow inputs
+          NDK_INPUT="${{ github.event.inputs.NDK }}"
+          if [ -z "$NDK_INPUT" ]; then
+            NDK_INPUT="21.4.7075529"
+          fi
           echo "::set-output name=OPENSSL_VERSION::$OPENSSL_VERSION"
-          echo "::set-output name=NDK::${{ github.event.inputs.NDK }}"
+          echo "::set-output name=NDK::$NDK_INPUT"
           echo "::set-output name=SKIP_OPENSSL_BUILD::${{ github.event.inputs.SKIP_OPENSSL_BUILD }}"
           echo "::set-output name=SHIP_OPENSSL_SOURCE::${{ github.event.inputs.SHIP_OPENSSL_SOURCE }}"
           echo "::set-output name=SHIP_SOURCE_TO_AAR::${{ github.event.inputs.SHIP_SOURCE_TO_AAR }}"
